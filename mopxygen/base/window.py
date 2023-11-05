@@ -40,20 +40,19 @@ def open_files(content, display_height, display_width):
     for filename in content:
         try:
             with open(filename, 'r') as f:
-                file_str = f.read()
-                lines = [l[:width] for l in file_str.splitlines()]
-                trimmed_lines = ""
+                file_rows = f.read().splitlines()
+                lines = [l[:width] for l in file_rows]
+                trimmed_lines = []
                 if len(lines) > display_height - 2:
-                    trimmed_lines = "\n".join(lines[:display_height - 2])
+                    trimmed_lines = lines[:display_height - 2]
                 else:
-                    trimmed_lines = "\n".join(lines)
+                    trimmed_lines = lines
 
                 file_contents[filename] = {
-                    "display_str": trimmed_lines, "original": file_str}
-                # file_contents[filename] = f.read()
+                    "display_str": trimmed_lines, "original": file_rows}
         except FileNotFoundError:
             file_contents[filename] = {
-                "display_str": f"File not found: {filename}", "original": ""}
+                "display_str": [f"File not found: {filename}"], "original": [""]}
     return file_contents
 
 
@@ -111,8 +110,8 @@ class VerticalPane:
                 self.height, self.width // 4 * 3, 0, self.width // 4)
             preview_window.border(0)
             preview_window.refresh()
-            preview_window.addstr(
-                1, 1, self.content_dict[selected_item]["display_str"])
+            for i, line in enumerate(self.content_dict[selected_item]["display_str"]):
+                preview_window.addstr(1+i, 1, line)
             preview_window.refresh()
 
         self.window.refresh()
