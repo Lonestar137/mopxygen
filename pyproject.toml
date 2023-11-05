@@ -1,0 +1,24 @@
+
+[project]
+name = "mopyxgen"
+version = "0.0.1"
+description = "MOPS debug tool."
+
+# repository = "..."
+
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["build", "pytermgui", "pyaml"]
+
+
+[project.optional-dependencies]
+# dev = [""]
+test = ["pytest"]
+
+[build-system]
+# Defaults
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+
