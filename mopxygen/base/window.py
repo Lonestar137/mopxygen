@@ -1,3 +1,4 @@
+import os
 import time
 import subprocess
 import curses
@@ -32,18 +33,55 @@ class CursesWindow(AbstractContextManager):
             self.window.refresh()
 
 
+def open_files(content, display_height, display_width):
+    file_contents = {}
+
+    width = display_width - 2
+    for filename in content:
+        try:
+            with open(filename, 'r') as f:
+                file_str = f.read()
+                lines = [l[:width] for l in file_str.splitlines()]
+                trimmed_lines = ""
+                if len(lines) > display_height - 2:
+                    trimmed_lines = "\n".join(lines[:display_height - 2])
+                else:
+                    trimmed_lines = "\n".join(lines)
+
+                file_contents[filename] = {
+                    "display_str": trimmed_lines, "original": file_str}
+                # file_contents[filename] = f.read()
+        except FileNotFoundError:
+            file_contents[filename] = {
+                "display_str": f"File not found: {filename}", "original": ""}
+    return file_contents
+
+
+def find_default_editor() -> str:
+    editor = None
+    try:
+        editor = os.environ["EDITOR"]
+    except KeyError:
+        editor = "nano"
+    return editor
+
+
 class VerticalPane:
     def __init__(self, parent, content, title=None):
         self.parent = parent
         self.content = content
         self.title = title
         self.height, self.width = parent.getmaxyx()
+        self.preview_width = self.width // 4 * 3
+        self.content_dict = open_files(
+            content, self.height, self.preview_width)
         self.selected = None
         self.window = curses.newwin(self.height, self.width // 4, 0, 0)
         self.window.border(0)
         self.window.refresh()
         self.scroll_pos = 0
         self.selected_index = 0
+        self.focused = True
 
     def display(self):
         self.window.clear()
@@ -59,11 +97,24 @@ class VerticalPane:
             if len(item) > self.width // 4 - 2:
                 item = item[:self.width // 4 - 5] + "..."
             if i == middle_index:
-                self.window.addstr(i + 1, 1, item, curses.A_REVERSE)
+                if self.focused:
+                    self.window.addstr(i + 1, 1, item, curses.A_REVERSE)
+                else:
+                    self.window.addstr(i + 1, 1, item, curses.A_BOLD)
             else:
                 self.window.addstr(i + 1, 1, item)
         if len(self.content) > self.height - 2:
             self.window.addstr(self.height - 2, 1, "...(more)")
+        if self.focused:
+            selected_item = self.get_selected_item()
+            preview_window = curses.newwin(
+                self.height, self.width // 4 * 3, 0, self.width // 4)
+            preview_window.border(0)
+            preview_window.refresh()
+            preview_window.addstr(
+                1, 1, self.content_dict[selected_item]["display_str"])
+            preview_window.refresh()
+
         self.window.refresh()
 
     def update(self):
@@ -91,14 +142,32 @@ class VerticalPane:
         if self.selected_index < 0:
             self.selected_index = len(self.content) - 1
 
-    def handle_key(self, key):
+    def handle_key(self, key, process=None):
         if key == curses.KEY_DOWN or key == ord('j'):
             self.scroll_down()
         elif key == curses.KEY_UP or key == ord('k'):
             self.scroll_up()
+        elif key == curses.KEY_ENTER or key == ord('\n') and type(process) == LessPane:
+            selected_item = self.get_selected_item()
+            process.spawn_less(selected_item)
+        elif key in [ord('l'), ord('\n'), curses.KEY_ENTER]:
+            selected_item = self.get_selected_item()
+            subprocess.run(["less", selected_item])
+        elif key == ord('e'):
+            editor = find_default_editor()
+            selected_item = self.get_selected_item()
+            subprocess.run([editor, selected_item])
 
     def get_selected_item(self):
         return self.content[self.selected_index]
+
+    def focus(self):
+        self.focused = True
+
+    def search(self):
+        # TODO: SEARCH
+        # in VerticalPane, create textpad, clone original, and set update content
+        pass
 
 
 class LessPane:
@@ -140,8 +209,8 @@ class LessPane:
             self.window.border(0)
             self.window.refresh()
 
-    # def focus(self):
-    #     self.focused = True
+    def focus(self):
+        self.focused = True
 
 
 async def check_resize(pane):
@@ -151,17 +220,17 @@ async def check_resize(pane):
             pane.update()
 
 
-async def start_fileview(stdscr):
+async def start_fileview(stdscr, content):
+
     with CursesWindow(stdscr) as base:
-        content = ["Item " + ("-" * i) for i in range(100)]
         pane = VerticalPane(base.window, content, title="Files")
         resize_task = asyncio.create_task(check_resize(pane))
-        less_pane = LessPane(base.window)
+        # less_pane = LessPane(base.window)
         while True:
             pane.display()
             pane.update()
-            less_pane.display()
-            less_pane.update()
+            # less_pane.display()
+            # less_pane.update()
 
             base.window.refresh()
             base.update()
@@ -169,9 +238,6 @@ async def start_fileview(stdscr):
             key = base.window.getch()
             if key == ord('q'):
                 break
-            elif key == curses.KEY_ENTER:
-                less_pane.spawn_less("/tmp/gameoverlayui.log")
-                less_pane.kill_less()
             else:
                 pane.handle_key(key)
         resize_task.cancel()
@@ -179,8 +245,11 @@ async def start_fileview(stdscr):
 
 def main(stdscr):
     curses.curs_set(0)
-    curses.halfdelay(20)
-    return asyncio.run(start_fileview(stdscr))
+    content = ["Item " + ("-" * i) for i in range(100)]
+    content.append("/tmp/gameoverlayui.log")
+    content.append("/tmp/tree.log")
+    content.append("/home/jonesgc/.bashrc")
+    return asyncio.run(start_fileview(stdscr, content))
 
 
 if __name__ == '__main__':
