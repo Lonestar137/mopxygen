@@ -31,9 +31,10 @@ class CursesWindow(AbstractContextManager):
 
 
 class VerticalPane:
-    def __init__(self, parent, content):
+    def __init__(self, parent, content, title=None):
         self.parent = parent
         self.content = content
+        self.title = title
         self.height, self.width = parent.getmaxyx()
         self.window = curses.newwin(self.height, self.width // 4, 0, 0)
         self.window.border(0)
@@ -42,6 +43,8 @@ class VerticalPane:
     def display(self):
         self.window.clear()
         self.window.border(0)
+        if self.title:
+            self.window.addstr(0, 1, self.title, curses.A_BOLD)
         for i, item in enumerate(self.content):
             if i >= self.height - 2:
                 break
@@ -49,7 +52,7 @@ class VerticalPane:
                 item = item[:self.width // 4 - 5] + "..."
             self.window.addstr(i + 1, 1, item)
         if len(self.content) > self.height - 2:
-            self.window.addstr(self.height - 2, 1, "...(more)")
+            self.window.addstr(self.height - 2, 1, "...(more)", curses.A_BOLD)
         self.window.refresh()
 
     def update(self):
@@ -69,11 +72,10 @@ async def check_resize(pane):
             pane.update()
 
 
-async def start(stdscr):
+async def start_fileview(stdscr):
     with CursesWindow(stdscr) as base:
-        content = ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5",
-                   "Item 6", "Item 7", "Item 8", "Item 9", "Item 10"]
-        pane = VerticalPane(base.window, content)
+        content = ["Item " + ("-" * i) for i in range(100)]
+        pane = VerticalPane(base.window, content, title="Files")
         resize_task = asyncio.create_task(check_resize(pane))
         while True:
             pane.display()
@@ -90,7 +92,7 @@ async def start(stdscr):
 
 def main(stdscr):
     curses.curs_set(0)
-    return asyncio.run(start(stdscr))
+    return asyncio.run(start_fileview(stdscr))
 
 
 if __name__ == '__main__':
