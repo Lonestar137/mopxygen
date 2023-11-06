@@ -83,8 +83,10 @@ class VerticalPane:
         self.window.border(0)
         self.window.refresh()
         self.scroll_pos = 0
-        self.selected_index = 0
+        self.selected_index = self.height // 2 if self.height < len(
+            content) else len(content) // 2
         self.focused = True
+        self.longer_content = len(content) > self.height
 
     def display(self):
         self.window.clear()
@@ -92,7 +94,9 @@ class VerticalPane:
         if self.title:
             self.window.addstr(0, 1, self.title, curses.A_BOLD)
         middle_index = self.height // 2
-        for i in range(self.height - 2):
+        display_range = (
+            self.height - 2) if self.longer_content else len(self.content)
+        for i in range(display_range):
             index = self.scroll_pos + i
             if index >= len(self.content):
                 index -= len(self.content)
@@ -362,7 +366,7 @@ async def start_fileview(stdscr, content):
 
 def main(stdscr):
     curses.curs_set(0)
-    content = ["Item " + ("-" * i) for i in range(100)]
+    content = ["Item " + ("-" * i) for i in range(10)]
     content.append("/tmp/gameoverlayui.log")
     content.append("/tmp/tree.log")
     content.append("/home/jonesgc/.bashrc")
