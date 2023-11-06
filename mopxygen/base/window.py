@@ -1,17 +1,21 @@
+from dataclasses import dataclass
 import os
+import abc
 import time
 import subprocess
 import curses
 import asyncio
+from typing import Union, List
 from contextlib import AbstractContextManager
 from curses.textpad import Textbox, rectangle
 
 
 class CursesWindow(AbstractContextManager):
-    def __init__(self, stdscr):
+    def __init__(self, stdscr, bottom_gap: int = 10):
         self.stdscr = stdscr
         self.height, self.width = stdscr.getmaxyx()
-        self.window = curses.newwin(self.height, self.width, 0, 0)
+        self.window = curses.newwin(
+            self.height-bottom_gap, self.width, 0, 0)
         self.window.border(0)
         self.window.refresh()
 
@@ -95,7 +99,8 @@ class VerticalPane:
             item = self.content[index]
             if len(item) > self.width // 4 - 2:
                 item = item[:self.width // 4 - 5] + "..."
-            if i == middle_index:
+            # if i == middle_index:
+            if item == self.get_selected_item():
                 if self.focused:
                     self.window.addstr(i + 1, 1, item, curses.A_REVERSE)
                 else:
@@ -212,6 +217,70 @@ class LessPane:
         self.focused = True
 
 
+@dataclass
+class Indicator:
+    """ 
+        value:    
+            bool, will be check box
+            %str, Will show a bar.
+            str%, Will show as string.
+            str, Will show as string.
+    """
+    name: str
+    value: Union[str, bool]
+    prompt_color: str = None
+    value_color: str = None
+
+    def display_indicator(self, parent, y, x):
+        parent.addstr(y, x + 1, self.name, curses.A_BOLD)
+
+
+class StatusLineWidget:
+    def __init__(self, parent, indicators: List[Indicator]):
+        self.parent = parent
+        self.height, self.width = parent.getmaxyx()
+        self.pane_height = int(self.height * 0.17)
+        self.window = curses.newwin(
+            self.pane_height, self.width, self.height, 0)
+        self.window.border(0)
+        self.window.refresh()
+        self.indicators: List[Indicator] = indicators
+
+    def display(self):
+        self.window.clear()
+        self.window.border(0)
+
+        row_width = 20
+        row_height = 3
+        base_x = 1
+        y = 1
+
+        for indicator in self.indicators:
+            if base_x > self.width and not y > self.pane_height - 1:
+                y += row_height
+                base_x = 1
+            if y > self.pane_height - 1:
+                self.window.addstr(self.pane_height-1, 1,
+                                   "more hidden indicators . . .", curses.A_BOLD)
+
+            try:
+                indicator.display_indicator(self.window, y, base_x)
+                base_x += row_width
+            except:
+                pass
+
+        self.window.refresh()
+
+    def update(self):
+        new_height, new_width = self.parent.getmaxyx()
+        if new_height != self.height or new_width != self.width:
+            self.height, self.width = new_height, new_width
+            self.window.resize(self.height, self.width // 4 * 3)
+            self.window.clear()
+            self.window.border(0)
+            self.display()
+
+
 async def check_resize(pane):
     while True:
         await asyncio.sleep(0)  # Allow other tasks to run
@@ -221,8 +290,54 @@ async def check_resize(pane):
 
 async def start_fileview(stdscr, content):
 
-    with CursesWindow(stdscr) as base:
+    indicators = [
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world"),
+        Indicator(name="Test:", value="world")
+    ]
+    with CursesWindow(stdscr, bottom_gap=10) as base:
         pane = VerticalPane(base.window, content, title="Files")
+        status_line = StatusLineWidget(base.window, indicators)
         resize_task = asyncio.create_task(check_resize(pane))
         # less_pane = LessPane(base.window)
         while True:
@@ -230,6 +345,9 @@ async def start_fileview(stdscr, content):
             pane.update()
             # less_pane.display()
             # less_pane.update()
+
+            status_line.display()
+            status_line.update()
 
             base.window.refresh()
             base.update()
