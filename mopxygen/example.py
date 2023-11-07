@@ -4,14 +4,14 @@ import curses.panel
 
 
 class BSPWindow:
-    def __init__(self, window, direction=None):
+    def __init__(self, window, direction=None, behavior=None, title=None):
         self.window = window
         self.direction = direction
         self.subwindows = []
-        self.task = None
-        self.title = None
+        self.behavior = behavior
+        self.title = title
 
-    def split(self, direction, percentage):
+    def split(self, direction, percentage, behavior=None, title=None):
         if self.subwindows:
             raise ValueError("Window already split")
         height, width = self.window.getmaxyx()
@@ -35,34 +35,25 @@ class BSPWindow:
                 int(height * percentage), width, int(height * (1 - percentage)), 0)
         else:
             raise ValueError("Invalid direction")
-        subwindow1.border(0)
-        subwindow2.border(0)
-        subwindow1.refresh()
-        subwindow2.refresh()
-        self.subwindows = [BSPWindow(subwindow1), BSPWindow(subwindow2)]
+        self.window.clear()
+        self.subwindows = [BSPWindow(subwindow1, self.direction, self.behavior, self.title), BSPWindow(
+            subwindow2, direction, behavior, title)]
         for subwindow in self.subwindows:
-            subwindow.direction = direction
-
-        return self
-
-    def set_title(self, title: str):
-        self.title = title
-        return self.subwindows[0]
+            subwindow.display()
+            # subwindow.direction = direction
 
     def display(self):
+        # self.window.clear()
         if self.subwindows:
             for subwindow in self.subwindows:
                 subwindow.display()
         else:
             self.window.border()
+            self.window.addstr(1, 1, "Window")
+            if self.behavior:
+                self.behavior(self.window)
             if self.title:
-                self.window.addstr(0, 0, "TEST")
-
-            if self.task:
-                # What to do in each Window.
-                pass
-            else:
-                self.window.addstr(1, 1, "Window")
+                self.window.addstr(0, 2, self.title)
         self.window.refresh()
 
     def update(self):
@@ -72,21 +63,28 @@ class BSPWindow:
         self.window.refresh()
 
 
-def main(root_window):
+def behavior1(window):
+    window.addstr(2, 2, "Behavior 1")
+
+
+def behavior2(window):
+    window.addstr(2, 2, "Behavior 2")
+
+
+def main(stdscr):
     curses.curs_set(0)
-    # root_window = curses.newwin(curses.LINES, curses.COLS, 0, 0)
+    root_window = curses.newwin(curses.LINES, curses.COLS, 0, 0)
+    root_window.border()
     root_window.refresh()
-    root_bsp_window = BSPWindow(root_window)
-    win2 = root_bsp_window.split("down", 0.2)
-    win2.set_title("Window 2")
-    root_bsp_window.subwindows[0].split("left", 0.3)
-    # root_bsp_window.subwindows[1].subwindows[1].split("right", 0.1)
-    # root_bsp_window.subwindows[0].subwindows[0].subwindows[0].split("right")
-    # root_bsp_window.subwindows[0].subwindows[1].split("down")
+    root_bsp_window = BSPWindow(
+        root_window, behavior=behavior1, title="Root Window")
+    root_bsp_window.split("left", 0.3, behavior=behavior2,
+                          title="Left Subwindow")
+    root_bsp_window.subwindows[0].split("down", 0.5, title="Bottom Subwindow")
     while True:
         root_bsp_window.display()
-        # root_bsp_window.update()
-        key = root_window.getch()
+        root_bsp_window.update()
+        key = stdscr.getch()
         if key == ord('q'):
             break
 
