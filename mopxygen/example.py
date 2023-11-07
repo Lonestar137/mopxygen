@@ -32,7 +32,8 @@ class BSPWindow:
             subwindow1 = curses.newwin(
                 int(height * (1 - percentage)), width, 0, 0)
             subwindow2 = curses.newwin(
-                int(height * percentage), width, int(height * (1 - percentage)), 0)
+                int(height * percentage) + 1, width, int(height * (1 - percentage)), 0)
+
         else:
             raise ValueError("Invalid direction")
         self.window.clear()
@@ -40,7 +41,7 @@ class BSPWindow:
             subwindow2, direction, behavior, title)]
         for subwindow in self.subwindows:
             subwindow.display()
-            # subwindow.direction = direction
+        # subwindow.direction = direction
 
     def display(self):
         # self.window.clear()
@@ -78,12 +79,16 @@ def main(stdscr):
     root_window.refresh()
     root_bsp_window = BSPWindow(
         root_window, behavior=behavior1, title="Root Window")
-    root_bsp_window.split("left", 0.3, behavior=behavior2,
+    root_bsp_window.split("right", 0.3, behavior=behavior2,
                           title="Left Subwindow")
     root_bsp_window.subwindows[0].split("down", 0.5, title="Bottom Subwindow")
+    # root_bsp_window.subwindows[0].subwindows[0].split(
+    #     "down", 0.5, title="Bottom Subwindow2")
+
     while True:
         root_bsp_window.display()
         root_bsp_window.update()
+
         key = stdscr.getch()
         if key == ord('q'):
             break
